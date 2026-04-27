@@ -1,0 +1,24 @@
+syntax = "proto3";
+package kv.discovery;
+
+service DiscoveryService {
+  rpc RegisterNode (RegisterRequest) returns (RegisterResponse);
+  rpc GetHealthyNodes (GetNodesRequest) returns (GetNodesResponse);
+}
+
+message RegisterRequest {
+  string ip_address = 1;
+  int32 port = 2;
+}
+
+message RegisterResponse { 
+  bool success = 1; 
+}
+
+message GetNodesRequest { 
+  string client_version = 1; 
+}
+
+message GetNodesResponse { 
+  repeated string node_addresses = 1; 
+}

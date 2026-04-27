@@ -63,6 +63,7 @@ private:
 } // namespace kv
 
 #include "kv.grpc.pb.h"
+#include "discovery.grpc.pb.h"
 #include <grpcpp/grpcpp.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
@@ -235,13 +236,43 @@ public:
         }
 
         if (stubs_.empty()) {
-            for(int s = 0; s < opts_.num_shards; ++s) {
-                int port = opts_.start_port + s;
+            auto disc_ch = grpc::CreateCustomChannel("ipv4:" + opts_.server_ip + ":50000", grpc::InsecureChannelCredentials(), grpc::ChannelArguments());
+            auto disc_stub = kv::discovery::DiscoveryService::NewStub(disc_ch);
+            std::vector<std::string> target_nodes;
+            int retry_count = 0;
+            const int expected_nodes = 8;
+            
+            std::cout << "[Client] Connecting to Control Plane for node discovery..." << std::endl;
+            while (true) {
+                grpc::ClientContext disc_ctx;
+                disc_ctx.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(2));
+                kv::discovery::GetNodesRequest disc_req;
+                kv::discovery::GetNodesResponse disc_resp;
+                disc_req.set_client_version("v8-single");
+                grpc::Status disc_st = disc_stub->GetHealthyNodes(&disc_ctx, disc_req, &disc_resp);
+                
+                if (disc_st.ok() && disc_resp.node_addresses_size() >= expected_nodes) {
+                    std::cout << "[Client] Cluster saturated! Discovered all " << disc_resp.node_addresses_size() << " API endpoints." << std::endl;
+                    for (int i=0; i < disc_resp.node_addresses_size(); ++i) target_nodes.push_back(disc_resp.node_addresses(i));
+                    break;
+                }
+                
+                std::cout << "[Client] Discovery attempt " << (++retry_count) << ": Found " << (disc_st.ok() ? disc_resp.node_addresses_size() : 0) 
+                          << "/" << expected_nodes << " nodes. " << (disc_st.ok() ? "Waiting for full cluster..." : "Waiting for Control Plane...") << std::endl;
+                
+                std::this_thread::sleep_for(std::chrono::seconds(2));
+                if (retry_count > 30) {
+                    std::cerr << "[CRITICAL] Lookaside Load Balancer timeout: Cluster failed to saturate after 60 seconds." << std::endl;
+                    return false;
+                }
+            }
+
+            for(const auto& ep : target_nodes) {
                 for(int c = 0; c < opts_.channels_per_shard; ++c) {
                     grpc::ChannelArguments args;
                     args.SetInt(GRPC_ARG_USE_LOCAL_SUBCHANNEL_POOL, 1);
                     if (!ca_cert.empty()) args.SetSslTargetNameOverride("kv-server");
-                    auto ch = grpc::CreateCustomChannel("ipv4:" + opts_.server_ip + ":" + std::to_string(port), channel_creds, args);
+                    auto ch = grpc::CreateCustomChannel("ipv4:" + ep, channel_creds, args);
                     stubs_.push_back(kv::KVService::NewStub(std::move(ch)));
                 }
             }
@@ -372,7 +403,6 @@ int main(int argc, char** argv) {
     opts.server_ip = server_ip;
     opts.num_shards = 8;
     opts.channels_per_shard = 16;
-    opts.api_key = "initial-pass";
     opts.ca_cert_path = "ca.crt";
 
     kv::KVClient client(opts);

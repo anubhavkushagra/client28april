@@ -24,18 +24,22 @@ find_program(PROTOC_EXE protoc REQUIRED)
 add_custom_command(
   OUTPUT  ${PROTO_OUT}/kv.pb.cc ${PROTO_OUT}/kv.pb.h
           ${PROTO_OUT}/kv.grpc.pb.cc ${PROTO_OUT}/kv.grpc.pb.h
+          ${PROTO_OUT}/discovery.pb.cc ${PROTO_OUT}/discovery.pb.h
+          ${PROTO_OUT}/discovery.grpc.pb.cc ${PROTO_OUT}/discovery.grpc.pb.h
   COMMAND ${PROTOC_EXE}
     --proto_path=${PROTO_DIR}
     --cpp_out=${PROTO_OUT}
     --grpc_out=${PROTO_OUT}
     --plugin=protoc-gen-grpc=${GRPC_CPP_PLUGIN}
-    ${PROTO_DIR}/kv.proto
-  DEPENDS ${PROTO_DIR}/kv.proto
+    ${PROTO_DIR}/kv.proto ${PROTO_DIR}/discovery.proto
+  DEPENDS ${PROTO_DIR}/kv.proto ${PROTO_DIR}/discovery.proto
 )
 
 add_library(kv_proto STATIC
   ${PROTO_OUT}/kv.pb.cc
   ${PROTO_OUT}/kv.grpc.pb.cc
+  ${PROTO_OUT}/discovery.pb.cc
+  ${PROTO_OUT}/discovery.grpc.pb.cc
 )
 target_include_directories(kv_proto PUBLIC ${PROTO_OUT})
 target_link_libraries(kv_proto PUBLIC gRPC::grpc++ protobuf::libprotobuf)
@@ -48,8 +52,6 @@ target_link_libraries(load_client_single PRIVATE
     Threads::Threads 
     gRPC::grpc++ 
     protobuf::libprotobuf 
-    crypto
-    ssl
 )
 
 # Client Batch Request
@@ -60,6 +62,4 @@ target_link_libraries(load_client_batch PRIVATE
     Threads::Threads 
     gRPC::grpc++ 
     protobuf::libprotobuf 
-    crypto
-    ssl
 )
