@@ -9,6 +9,7 @@ service DiscoveryService {
 message RegisterRequest {
   string ip_address = 1;
   int32 port = 2;
+  int32 shard_id = 3; 
 }
 
 message RegisterResponse { 

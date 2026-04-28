@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
 project(clientsdk16aprl CXX)
 
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build" FORCE)
+endif()
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -44,22 +49,21 @@ add_library(kv_proto STATIC
 target_include_directories(kv_proto PUBLIC ${PROTO_OUT})
 target_link_libraries(kv_proto PUBLIC gRPC::grpc++ protobuf::libprotobuf)
 
-# Client Single Request
-add_executable(load_client_single load_client_single.cpp)
-target_include_directories(load_client_single PRIVATE jwt-cpp/include)
-target_link_libraries(load_client_single PRIVATE 
+# Core SDK Library
+add_library(kv_client STATIC src/kv_client.cpp)
+target_include_directories(kv_client PUBLIC include PRIVATE jwt-cpp/include)
+target_link_libraries(kv_client PUBLIC 
     kv_proto 
-    Threads::Threads 
     gRPC::grpc++ 
     protobuf::libprotobuf 
+    Threads::Threads 
+    crypto
 )
 
-# Client Batch Request
-add_executable(load_client_batch load_client_batch.cpp)
-target_include_directories(load_client_batch PRIVATE jwt-cpp/include)
-target_link_libraries(load_client_batch PRIVATE 
-    kv_proto 
-    Threads::Threads 
-    gRPC::grpc++ 
-    protobuf::libprotobuf 
-)
+# Example: Single Request Benchmark
+add_executable(benchmark_single examples/benchmark_single.cpp)
+target_link_libraries(benchmark_single PRIVATE kv_client)
+
+# Example: Batch Request Benchmark
+add_executable(benchmark_batch examples/benchmark_batch.cpp)
+target_link_libraries(benchmark_batch PRIVATE kv_client)
