@@ -239,9 +239,8 @@ public:
     if (!local_cur_stubs || local_cur_stubs->empty())
       return {false, "NO_NODES_AVAILABLE"};
 
-    int chan_idx = rr_channel_.fetch_add(1, std::memory_order_relaxed) %
-                   local_cur_stubs->size();
-    auto *stub = (*local_cur_stubs)[chan_idx].get();
+    static thread_local int chan_idx = std::hash<std::thread::id>{}(std::this_thread::get_id());
+    auto *stub = (*local_cur_stubs)[chan_idx++ % local_cur_stubs->size()].get();
 
     kv::SingleRequest req;
     req.set_type(type);
