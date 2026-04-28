@@ -375,10 +375,8 @@ retry_label:
 
   if (!stubs_ || stubs_->empty())
     return {};
-  static std::atomic<int> rr_channel_{0};
-  int chan_idx =
-      rr_channel_.fetch_add(1, std::memory_order_relaxed) % stubs_->size();
-  auto *stub = (*stubs_)[chan_idx].get();
+  static thread_local int chan_idx = std::hash<std::thread::id>{}(std::this_thread::get_id());
+  auto *stub = (*stubs_)[chan_idx++ % stubs_->size()].get();
 
   grpc::Status s = stub->ExecuteBatch(&ctx, batch_req_, &batch_resp);
 
